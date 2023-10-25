@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+
 	//"errors"
 	"net/http"
-
+	"strconv"
 	//"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	//"google.golang.org/protobuf/internal/strs"
 )
 
 
@@ -15,9 +17,11 @@ var CurrentEnemy Enemy
 var battleAnnouncement string 
 
 
+
+
+
 type Enemy struct {
 	ID     string `json:"id"`
-
 	Name  string `json:"name"`
 	Attack int32 `json:"Attack"`
 	Health int32 `json:"health"`
@@ -25,7 +29,7 @@ type Enemy struct {
 	Defeated bool `json:"defeated"`
 	Speed int32 `json:"speed"`
 	ExperincePoints int32 `json:"points"`
-	
+
 }
 
 type PlayerClass struct {
@@ -40,6 +44,57 @@ type PlayerClass struct {
 	Defence int32 `json:"defence"`
 	Speed int32 `json:"speed"`
 }
+
+func (e Enemy) EnemyAttack(enemy Enemy, player PlayerClass,FirstToAttack bool){
+	SetBattleAnnouncement( player.Name+" : " +strconv.Itoa(int(player.Health))+"HP")
+	if (player.Defence < enemy.Attack){
+		player.Health -= enemy.Attack 
+		SetBattleAnnouncement( player.Name +" Was attacked by " + enemy.Name)
+		SetBattleAnnouncement( player.Name+" : " +strconv.Itoa(int(player.Health))+"HP")
+	}
+	
+	if player.Health <= 0 {
+		player.Health = 0
+		EndCurrentBattle(enemy, player)
+		return
+	}
+	if (FirstToAttack){
+		player.SimpleAttack(enemy,player,false)	
+	}
+	
+}
+
+func (e Enemy) EnemyOnDeath( enemy Enemy ,player PlayerClass){
+	fmt.Println("The enemy give the player exp")
+	player.GainExperincePoints(enemy)
+	EndCurrentBattle(enemy, player)
+}
+
+func (p PlayerClass) SimpleAttack( enemy Enemy, player PlayerClass,FirstToAttack bool) bool{	
+	SetBattleAnnouncement(enemy.Name+" : " +strconv.Itoa(int(enemy.Health))+"HP")
+	if (enemy.Defence < player.Attack){
+		enemy.Health -= player.Attack
+		SetBattleAnnouncement( enemy.Name +" Was attacked by " + player.Name)
+		SetBattleAnnouncement(enemy.Name+" : " +strconv.Itoa(int(enemy.Health)) +"HP")
+	}
+	
+	
+	if enemy.Health <= 0 {
+		enemy.Defeated = true
+		enemy.EnemyOnDeath(enemy, player)
+		
+		return true
+	}
+	if (FirstToAttack){
+		//Then the Enemy will attack play since they havent attacked yet
+		enemy.EnemyAttack(enemy,player,false)	
+	}
+	return false
+}
+
+
+
+
 
 func (player PlayerClass) GainExperincePoints(enemy Enemy) {
 	player.ExperincePointsUntilNextLevel += player.Level * 5
@@ -56,16 +111,16 @@ func (player PlayerClass) GainExperincePoints(enemy Enemy) {
 
 
 var PlayerCharacter = []PlayerClass{
-	{ID: "1", Name: "Mage", Attack: 6, Defence: 3,Health: 14,Speed: 5 ,Level: 0},
-	{ID: "2", Name: "Knight", Attack: 3, Defence: 5,Health: 20, Speed: 6},
-	{ID: "3", Name: "Rouge", Attack: 3, Defence: 4,Health: 16, Speed: 10},
+	{ID: "1", Name: "Mage", Attack: 6, Defence: 2,Health: 14,Speed: 5 ,Level: 1},
+	{ID: "2", Name: "Knight", Attack: 3, Defence: 3,Health: 20, Speed: 6},
+	{ID: "3", Name: "Rouge", Attack: 3, Defence: 2,Health: 16, Speed: 10},
 	{ID: "4", Name: "Tank", Attack: 3, Defence: 4,Health: 22,Speed: 2 },
 }
 
 
 
 var Enemies = []Enemy{
-	{ID: "1", Name: "Slime", Attack: 1, Defence: 1,Health: 8, Defeated: false ,Speed: 3, ExperincePoints: 5},
+	{ID: "1", Name: "Slime", Attack: 1, Defence: 1,Health: 6, Defeated: false ,Speed: 3, ExperincePoints: 5},
 	{ID: "2", Name: "Goblin", Attack: 3, Defence: 5,Health: 20, Defeated: false ,Speed: 6, ExperincePoints: 10},
 	{ID: "3", Name: "Bat", Attack: 3, Defence: 2,Health: 10, Defeated: false ,Speed: 8,ExperincePoints: 7},
 }
@@ -89,16 +144,27 @@ func BattleTurn(enemy Enemy ,player PlayerClass){
 	battleAnnouncement:= enemy.Name + " and " + player.Name +" have enter batte "
 	println(battleAnnouncement)
 	if enemy.Speed >= player.Speed{
-		println("enemy is faster")
+		enemy.EnemyAttack(enemy,player,true)
 	}else {
-		println("Player is faster")
+		player.SimpleAttack(enemy, player,true)
 	}
 	
 }
 
 
+func EndCurrentBattle(enemy Enemy, player PlayerClass){
+	if (enemy.Defeated == true){
+		SetBattleAnnouncement("The current battle as End," +enemy.Name +" was defeated.")
+	}else {
+		SetBattleAnnouncement("The current battle as End,"+" the player has been defeated.")
+	}
+}
 
 
+func SetBattleAnnouncement(NewAnnouncement string){
+	battleAnnouncement = NewAnnouncement
+	println(battleAnnouncement)
+}
 
 //func getBooksById(id string) (*book,error){
 	//for i, b:= range books {
@@ -119,9 +185,25 @@ func createBooks(c *gin.Context){
 	c.IndentedJSON(http.StatusCreated, NewEnemy)
 }
 
+
+func SetPlayer(player PlayerClass) {
+	CurrentPlayer = player 
+	fmt.Println("Current player is ", player.Name)
+}
+
+func SetEnemy(enemy Enemy) {
+	CurrentEnemy = enemy
+	fmt.Println("Current enemy is ", enemy.Name)
+}
+
+
+
+
+
 func main(){
-	BattleTurn(Enemies[0], PlayerCharacter[0])
-	PlayerCharacter[0].GainExperincePoints(Enemies[0])
+	SetPlayer(PlayerCharacter[0])
+	SetEnemy(Enemies[1])
+	BattleTurn(CurrentEnemy, CurrentPlayer)
 	//router := gin.Default()
 	//router.Use(cors.New(cors.Config{
 		
