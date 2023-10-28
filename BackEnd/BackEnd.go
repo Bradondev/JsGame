@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	//"go/printer"
 
-	//"errors"
+	"errors"
 	"net/http"
 	"strconv"
-	//"github.com/gin-contrib/cors"
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	//"google.golang.org/protobuf/internal/strs"
 )
@@ -18,11 +20,13 @@ var battleAnnouncement string
 
 
 
-
+type message struct{
+	Message string `json:"message"`
+}
 
 type Enemy struct {
-	ID     string `json:"id"`
 	Name  string `json:"name"`
+	ID     string `json:"id"`
 	Attack int32 `json:"Attack"`
 	Health int32 `json:"health"`
 	Defence int32 `json:"defence"`
@@ -33,12 +37,11 @@ type Enemy struct {
 }
 
 type PlayerClass struct {
-
+	Name  string `json:"name"`
 	ID     string `json:"id"`
 	Level int32 `json:"level"`
 	CurrentExperincePoints int32 `json:"points"`
 	ExperincePointsUntilNextLevel int32 `json:"neededpoints"`
-	Name  string `json:"name"`
 	Attack int32 `json:"Attack"`
 	Health int32 `json:"health"`
 	Defence int32 `json:"defence"`
@@ -145,10 +148,12 @@ func BattleTurn(enemy Enemy ,player PlayerClass){
 	println(battleAnnouncement)
 	if enemy.Speed >= player.Speed{
 		enemy.EnemyAttack(enemy,player,true)
+		
 	}else {
 		player.SimpleAttack(enemy, player,true)
 	}
-	
+	CurrentEnemy.Health = enemy.Health
+	CurrentPlayer.Health = player.Health
 }
 
 
@@ -166,14 +171,29 @@ func SetBattleAnnouncement(NewAnnouncement string){
 	println(battleAnnouncement)
 }
 
-//func getBooksById(id string) (*book,error){
-	//for i, b:= range books {
-		//if b.ID == id {
-			//return &books[i],nil
-		//}
-	//}
-	///return nil, errors.New("books not found")
-//}
+
+
+func GinGetEnemybyId(c *gin.Context) {
+	id := c.Param("id")
+	Enemy, err := GetEnemybyId(id)
+
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Book not found."})
+		return
+	}
+	c.IndentedJSON(http.StatusOK, Enemy)
+}
+
+
+
+func GetEnemybyId(id string) (*Enemy,error){
+	for i, b:= range Enemies {
+		if b.ID == id {
+			return &Enemies[i],nil
+		}
+	}
+	return nil, errors.New("books not found")
+}
 
 func createBooks(c *gin.Context){
 	var NewEnemy Enemy
@@ -198,16 +218,107 @@ func SetEnemy(enemy Enemy) {
 
 
 
+func GetListOfEnemy(c *gin.Context){
+	c.IndentedJSON(http.StatusOK, Enemies)
+}
+
+func GetListOfPlayer(c *gin.Context){
+	c.IndentedJSON(http.StatusOK, PlayerCharacter)
+}
+
+func CreateNewEnemy(c *gin.Context){
+	var NewEnemy Enemy
+
+	if err:= c.BindJSON(&NewEnemy); err != nil{
+		return
+	}
+	
+	Enemies = append(Enemies, NewEnemy)
+	c.IndentedJSON(http.StatusCreated,NewEnemy)
+}
+
+func GinStartBattle(c *gin.Context){
+	var player PlayerClass = CurrentPlayer
+	var enemy Enemy = CurrentEnemy
+
+	battleAnnouncement:= enemy.Name + " and " + player.Name +" have enter batte "
+	SetBattleAnnouncement(battleAnnouncement)
+	println("test")
+
+	
+	
+
+
+	if enemy.Speed >= player.Speed {
+		//enemy.EnemyAttack(enemy,player,true
+		CurrentPlayer.Health -=CurrentEnemy.Attack
+		
+		if CurrentPlayer.Health >= 0 {
+			CurrentEnemy.Health-= CurrentPlayer.Attack
+			
+		}else {
+			println("Player is dead")
+		}
+
+	}else {
+		//player.SimpleAttack(enemy, player,true)	
+		CurrentEnemy.Health-= CurrentPlayer.Attack
+		if CurrentEnemy.Health >= 0 {
+			CurrentPlayer.Health-= CurrentEnemy.Attack
+		
+		}else{
+			println("Enemy is dead")
+		}
+		c.IndentedJSON(http.StatusAccepted, CurrentPlayer)
+	}
+	
+
+
+
+
+
+
+	c.IndentedJSON(http.StatusOK,CurrentPlayer)
+}
+
+func GinGetCurrentPlayerOrEnemy(c *gin.Context){
+	EnemyOrPlayer := c.Param("UnitType")
+	println(EnemyOrPlayer)
+	if (EnemyOrPlayer == "Player"){
+		c.IndentedJSON(http.StatusOK,CurrentPlayer)
+	}else{
+		c.IndentedJSON(http.StatusOK,CurrentEnemy)
+	}
+	
+}
+func StartGame(c *gin.Context){
+	c.IndentedJSON(http.StatusOK,gin.H{"message": "The Game Will Start once the button is clicked"})
+}
 
 
 func main(){
-	SetPlayer(PlayerCharacter[0])
+	router := gin.Default()
+
+	//SetPlayer(PlayerCharacter[0])
+
 	SetEnemy(Enemies[1])
-	BattleTurn(CurrentEnemy, CurrentPlayer)
-	//router := gin.Default()
-	//router.Use(cors.New(cors.Config{
+	router.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"http://localhost:3000"},
+		AllowMethods: []string{"PUT","PACTH","POST","DELETE","GET"},
+		AllowHeaders: []string{"Content-Type"},
+		AllowCredentials: true,
 		
-	//}))
+	}))
+	//BattleTurn(CurrentEnemy, CurrentPlayer)
+	router.GET("Startgame", StartGame)
+	router.GET("Enemy/:id", GinGetEnemybyId)
+	router.GET("/En" ,GetListOfEnemy)
+	router.GET("/Pr", GetListOfPlayer)
+	router.PATCH("/StartBattle",GinStartBattle)
+	router.GET("/CurrentUnits/:UnitType",GinGetCurrentPlayerOrEnemy)
+	router.Run("localhost:8080")
+
+
 	//router.PATCH("/return",returnBook)
 	//router.PATCH("/checkout", checkoutBook)
 	//router.GET("/books", getBooks)
