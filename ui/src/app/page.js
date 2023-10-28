@@ -25,15 +25,31 @@ export default function Home() {
   const [data, setData] = useState(null);
 
   const handleClick = async () => {
-    try {
-      const data = await (
-        await fetch(`http://localhost:8080/Enemy/${id}`)
-      ).json();
-      setData(data);
-      Data = data.name;
-    } catch (err) {
-      console.log(err.message);
+    if (id.includes("SetPlayer")) {
+      var NumberId = id.charAt(id.length - 1);
+
+      try {
+        const data = await (
+          await fetch(
+            `http://localhost:8080/SetPlayer/${id.charAt(id.length - 1)}`
+          )
+        ).json();
+        setData(data);
+        Data = `Current player is ${data.name}`;
+      } catch (err) {
+        console.log(err.message);
+      }
     }
+
+    // try {
+    //   const data = await (
+    //     await fetch(`http://localhost:8080/Enemy/${id}`)
+    //   ).json();
+    //   setData(data);
+    //   Data = data.name;
+    // } catch (err) {
+    //   console.log(err.message);
+    // }
   };
   return (
     <>
@@ -46,8 +62,8 @@ export default function Home() {
 
         <h2 className="ontWhite grid gap-4 grid-cols-2 text-lg">
           <p className="ontWhite"> Fight </p>
-          <p className="ontWhite"> Use Item/Id </p>
-          <p className="ontWhite"> check Stats</p>
+          <p className="ontWhite"> SetPlayer/Id </p>
+          <p className="ontWhite"> checkStats</p>
           <p className="ontWhite"> </p>
           <p className="ontWhite"> </p>
         </h2>

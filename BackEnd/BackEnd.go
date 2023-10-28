@@ -20,8 +20,14 @@ var battleAnnouncement string
 
 
 
-type message struct{
-	Message string `json:"message"`
+
+
+
+
+type GameInfo struct{
+	CurrentGameState string `json:"gameState"`//can be InBattle, Exploring, Shoping
+	CanExplore bool `json:"canExplore"`
+
 }
 
 type Enemy struct {
@@ -35,7 +41,6 @@ type Enemy struct {
 	ExperincePoints int32 `json:"points"`
 
 }
-
 type PlayerClass struct {
 	Name  string `json:"name"`
 	ID     string `json:"id"`
@@ -46,6 +51,16 @@ type PlayerClass struct {
 	Health int32 `json:"health"`
 	Defence int32 `json:"defence"`
 	Speed int32 `json:"speed"`
+}
+type ExploreAbleArea struct{
+	ID     string `json:"id"`
+	AreasName string `json:"name"`
+	AreasRecommenedLevel string `json:"recomLevel"`
+	MonstersFoundInArea []Enemy `json:"monstersInArea"`
+	AmountOfRoomsInArea int32 `json:"amountOfRooms"`
+	AmountOfMonstersInArea int32 `json:"amountOfMonstersInArea"`
+	AmountOfTreasureRooms int32 `json:"amountOfTreasureRooms"`
+	AreaCleared bool 
 }
 
 func (e Enemy) EnemyAttack(enemy Enemy, player PlayerClass,FirstToAttack bool){
@@ -111,7 +126,7 @@ func (player PlayerClass) GainExperincePoints(enemy Enemy) {
 }
 
 
-
+///data used for the game 
 
 var PlayerCharacter = []PlayerClass{
 	{ID: "1", Name: "Mage", Attack: 6, Defence: 2,Health: 14,Speed: 5 ,Level: 1},
@@ -126,9 +141,28 @@ var Enemies = []Enemy{
 	{ID: "1", Name: "Slime", Attack: 1, Defence: 1,Health: 6, Defeated: false ,Speed: 3, ExperincePoints: 5},
 	{ID: "2", Name: "Goblin", Attack: 3, Defence: 5,Health: 20, Defeated: false ,Speed: 6, ExperincePoints: 10},
 	{ID: "3", Name: "Bat", Attack: 3, Defence: 2,Health: 10, Defeated: false ,Speed: 8,ExperincePoints: 7},
+	{ID: "4", Name: "Krugs",Attack: 2,Defence: 5,Health: 10,Defeated: false,Speed: 2,ExperincePoints: 10},
+	{ID: "5", Name: "Bear", Attack: 4, Defence:  4,Health: 16, Defeated: false,Speed: 5, ExperincePoints: 16},
+	{ID: "6", Name: "Skeleton", Attack: 5, Defence: 2, Health: 15, Defeated: false, Speed: 7, ExperincePoints: 17},
+	{ID: "7", Name: "Warerat", Attack: 6, Defence: 4, Health: 20,Defeated: false ,Speed: 5,ExperincePoints: 20},
+	{ID: "8", Name: "Undead Knight", Attack: 7, Defence: 5, Health:  23 ,Defeated:  false,Speed: 5,ExperincePoints: 25},
 }
 
 
+var ForestMonsters = []Enemy{Enemies[0],Enemies[1],Enemies[2],}
+var CaveMonsters = []Enemy{Enemies[1],Enemies[3],Enemies[4]}
+var DungeonMonsters = []Enemy{Enemies[7],Enemies[6],Enemies[5]}
+
+
+var Areas = []ExploreAbleArea{
+	{ID: "1", AreasName: "Forest",AreasRecommenedLevel: "1",MonstersFoundInArea: ForestMonsters, AmountOfRoomsInArea: 5,AmountOfMonstersInArea: 2,AmountOfTreasureRooms: 1,AreaCleared: false },
+	{ID: "2", AreasName: "Cave",AreasRecommenedLevel: "3", MonstersFoundInArea:CaveMonsters,AmountOfRoomsInArea: 6,AmountOfMonstersInArea: 3,AmountOfTreasureRooms: 2 ,AreaCleared: false},
+	{ID:"3",AreasName: "Dungeon",AreasRecommenedLevel: "5", MonstersFoundInArea:DungeonMonsters,AmountOfRoomsInArea: 7,AmountOfMonstersInArea: 4 ,AmountOfTreasureRooms: 3 ,AreaCleared: false },
+}
+
+
+
+//////////////
 
 //func bookById(c *gin.Context){
 	//id := c.Param("id")
@@ -294,6 +328,30 @@ func GinGetCurrentPlayerOrEnemy(c *gin.Context){
 func StartGame(c *gin.Context){
 	c.IndentedJSON(http.StatusOK,gin.H{"message": "The Game Will Start once the button is clicked"})
 }
+func ReturnCurrentPlayer(c *gin.Context){
+	c.IndentedJSON(http.StatusOK,CurrentPlayer)
+}
+
+func GinChoosePlayerById(c *gin.Context) {
+	id := c.Param("id")
+	PlayerClass, err := GetPlayerById(id)
+
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "No player with that id found"})
+		return
+	}
+	c.IndentedJSON(http.StatusOK, PlayerClass)
+}
+func GetPlayerById(id string) (*PlayerClass,error){
+	for i, b:= range PlayerCharacter {
+		if b.ID == id {
+			CurrentPlayer =  PlayerCharacter[i]
+			return &PlayerCharacter[i],nil
+		}
+	}
+	return nil, errors.New("no player found")
+}
+
 
 
 func main(){
@@ -309,7 +367,10 @@ func main(){
 		AllowCredentials: true,
 		
 	}))
+	SetPlayer(PlayerCharacter[1])
 	//BattleTurn(CurrentEnemy, CurrentPlayer)
+	router.GET("GetPlayer",ReturnCurrentPlayer)
+	router.GET("SetPlayer/:id", GinChoosePlayerById)
 	router.GET("Startgame", StartGame)
 	router.GET("Enemy/:id", GinGetEnemybyId)
 	router.GET("/En" ,GetListOfEnemy)
