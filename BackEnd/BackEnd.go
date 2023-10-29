@@ -14,21 +14,28 @@ import (
 )
 
 
+var CurrentArea ExploreAbleArea
 var CurrentPlayer PlayerClass
 var CurrentEnemy Enemy
 var battleAnnouncement string 
-
-
-
-
-
-
-
-type GameInfo struct{
-	CurrentGameState string `json:"gameState"`//can be InBattle, Exploring, Shoping
-	CanExplore bool `json:"canExplore"`
-
+var CurrentGame = GameState{
+	InBattle: false,
+	CanExplore: false,
 }
+
+type GameMessage struct{
+	Announcement string `json:"Announcement"`
+}
+
+
+type GameState struct{
+	InBattle bool
+	CanExplore bool
+	
+}
+
+
+
 
 type Enemy struct {
 	Name  string `json:"name"`
@@ -158,6 +165,10 @@ var Areas = []ExploreAbleArea{
 	{ID: "1", AreasName: "Forest",AreasRecommenedLevel: "1",MonstersFoundInArea: ForestMonsters, AmountOfRoomsInArea: 5,AmountOfMonstersInArea: 2,AmountOfTreasureRooms: 1,AreaCleared: false },
 	{ID: "2", AreasName: "Cave",AreasRecommenedLevel: "3", MonstersFoundInArea:CaveMonsters,AmountOfRoomsInArea: 6,AmountOfMonstersInArea: 3,AmountOfTreasureRooms: 2 ,AreaCleared: false},
 	{ID:"3",AreasName: "Dungeon",AreasRecommenedLevel: "5", MonstersFoundInArea:DungeonMonsters,AmountOfRoomsInArea: 7,AmountOfMonstersInArea: 4 ,AmountOfTreasureRooms: 3 ,AreaCleared: false },
+}
+
+var GameMessages = []GameMessage{{
+	Announcement: ""},
 }
 
 
@@ -326,31 +337,61 @@ func GinGetCurrentPlayerOrEnemy(c *gin.Context){
 	
 }
 func StartGame(c *gin.Context){
-	c.IndentedJSON(http.StatusOK,gin.H{"message": "The Game Will Start once the button is clicked"})
+	c.IndentedJSON(http.StatusOK,gin.H{"message": "Please choose a clas by entering : SetClass/Mage or Knight or Tank or Rouge"  })
 }
 func ReturnCurrentPlayer(c *gin.Context){
 	c.IndentedJSON(http.StatusOK,CurrentPlayer)
 }
 
-func GinChoosePlayerById(c *gin.Context) {
-	id := c.Param("id")
-	PlayerClass, err := GetPlayerById(id)
 
-	if err != nil {
-		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "No player with that id found"})
-		return
-	}
-	c.IndentedJSON(http.StatusOK, PlayerClass)
-}
-func GetPlayerById(id string) (*PlayerClass,error){
+func GetPlayerByName(name string) (*PlayerClass,error){
 	for i, b:= range PlayerCharacter {
-		if b.ID == id {
+		if b.Name == name {
 			CurrentPlayer =  PlayerCharacter[i]
 			return &PlayerCharacter[i],nil
 		}
 	}
 	return nil, errors.New("no player found")
 }
+
+func GetAreaById(id string) (*ExploreAbleArea,error){
+	for i, b:= range Areas{
+		if b.ID == id {
+			 CurrentArea=  Areas[i]
+			return &Areas[i],nil
+		}
+	}
+	return nil, errors.New("no player found")
+}
+func GetListOfAreas(c *gin.Context){
+	c.IndentedJSON(http.StatusOK, Areas)
+
+}
+
+func SetClass(c *gin.Context){
+	ClassName := c.Param("ClassName")
+	PlayerClass, err := GetPlayerByName(ClassName)
+
+	if err != nil {
+		GameMessages[0].Announcement ="No Class found with that Name found. The Classes that can be picked are Mage, Knight, Tank ,and Rouge"
+		c.IndentedJSON(http.StatusNotFound, GameMessages[0])
+		return
+	}
+	GameMessages[0].Announcement = "Your Current Class is " + PlayerClass.Name +".Now you are able to explore please enter : Explore/Forest or Cave or Dungon"
+	c.IndentedJSON(http.StatusOK, GameMessages[0]) 
+	CurrentPlayer = *PlayerClass
+	
+}
+
+
+// func ExploreArea(c *gin.Context){
+// 	CurrentArea.
+
+	
+// }
+
+
+
 
 
 
@@ -369,8 +410,15 @@ func main(){
 	}))
 	SetPlayer(PlayerCharacter[1])
 	//BattleTurn(CurrentEnemy, CurrentPlayer)
+
+	router.GET("Explore/:AreaName")
+	router.GET("SetClass/:ClassName" ,SetClass )
+
+
+
+	router.GET("GetAreas", GetListOfAreas)
 	router.GET("GetPlayer",ReturnCurrentPlayer)
-	router.GET("SetPlayer/:id", GinChoosePlayerById)
+	//router.GET("SetPlayer/:id", GinChoosePlayerById)
 	router.GET("Startgame", StartGame)
 	router.GET("Enemy/:id", GinGetEnemybyId)
 	router.GET("/En" ,GetListOfEnemy)

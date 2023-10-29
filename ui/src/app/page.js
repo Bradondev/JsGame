@@ -8,8 +8,7 @@ function Square({ context }) {
     <button className="square px-8 border text-stone-50...">{context}</button>
   );
 }
-var Data;
-
+var GameText = "";
 export default function Home() {
   const [message, SetMessage] = useState([]);
   useEffect(() => {
@@ -17,7 +16,8 @@ export default function Home() {
       .then((data) => data.json())
       .then((data) => {
         SetMessage(data);
-        Data = message.message;
+        GameText = data.message;
+        console.log(GameText);
       });
   }, []);
 
@@ -25,20 +25,14 @@ export default function Home() {
   const [data, setData] = useState(null);
 
   const handleClick = async () => {
-    if (id.includes("SetPlayer")) {
-      var NumberId = id.charAt(id.length - 1);
-
-      try {
-        const data = await (
-          await fetch(
-            `http://localhost:8080/SetPlayer/${id.charAt(id.length - 1)}`
-          )
-        ).json();
-        setData(data);
-        Data = `Current player is ${data.name}`;
-      } catch (err) {
-        console.log(err.message);
-      }
+    try {
+      const data = await (await fetch(`http://localhost:8080/${id}`)).json();
+      setData(data);
+      console.log(data);
+      GameText = data.Announcement;
+    } catch (err) {
+      console.log(err.message);
+      GameText = data.Announcement;
     }
 
     // try {
@@ -64,11 +58,11 @@ export default function Home() {
           <p className="ontWhite"> Fight </p>
           <p className="ontWhite"> SetPlayer/Id </p>
           <p className="ontWhite"> checkStats</p>
-          <p className="ontWhite"> </p>
+          <p className="ontWhite"> GetAreas</p>
           <p className="ontWhite"> </p>
         </h2>
       </div>
-      <div></div>
+      <div className="TopCenter border w-2/4 h-60">{GameText}</div>
       <div className="center ">
         <div className="board-row p-8 flex space-x-40 ...">
           <input
@@ -84,7 +78,6 @@ export default function Home() {
           </button>
         </div>
       </div>
-      <div className="TopCenter border"> {Data}</div>
     </>
   );
 }
