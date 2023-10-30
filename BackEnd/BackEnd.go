@@ -2,18 +2,20 @@ package main
 
 import (
 	"fmt"
+	
 	//"go/printer"
-
 	"errors"
 	"net/http"
-	"strconv"
+	"time"
+
+	//"strconv"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	//"google.golang.org/protobuf/internal/strs"
 )
-
-
+var counterForArea int = 0
+var MonsterEncountered int 
 var CurrentArea ExploreAbleArea
 var CurrentPlayer PlayerClass
 var CurrentEnemy Enemy
@@ -68,55 +70,8 @@ type ExploreAbleArea struct{
 	AmountOfMonstersInArea int32 `json:"amountOfMonstersInArea"`
 	AmountOfTreasureRooms int32 `json:"amountOfTreasureRooms"`
 	AreaCleared bool 
+	OrderOfRooms []int32 // 0 = TreasureRoom ,1 = monster , 2 = emtpy
 }
-
-func (e Enemy) EnemyAttack(enemy Enemy, player PlayerClass,FirstToAttack bool){
-	SetBattleAnnouncement( player.Name+" : " +strconv.Itoa(int(player.Health))+"HP")
-	if (player.Defence < enemy.Attack){
-		player.Health -= enemy.Attack 
-		SetBattleAnnouncement( player.Name +" Was attacked by " + enemy.Name)
-		SetBattleAnnouncement( player.Name+" : " +strconv.Itoa(int(player.Health))+"HP")
-	}
-	
-	if player.Health <= 0 {
-		player.Health = 0
-		EndCurrentBattle(enemy, player)
-		return
-	}
-	if (FirstToAttack){
-		player.SimpleAttack(enemy,player,false)	
-	}
-	
-}
-
-func (e Enemy) EnemyOnDeath( enemy Enemy ,player PlayerClass){
-	fmt.Println("The enemy give the player exp")
-	player.GainExperincePoints(enemy)
-	EndCurrentBattle(enemy, player)
-}
-
-func (p PlayerClass) SimpleAttack( enemy Enemy, player PlayerClass,FirstToAttack bool) bool{	
-	SetBattleAnnouncement(enemy.Name+" : " +strconv.Itoa(int(enemy.Health))+"HP")
-	if (enemy.Defence < player.Attack){
-		enemy.Health -= player.Attack
-		SetBattleAnnouncement( enemy.Name +" Was attacked by " + player.Name)
-		SetBattleAnnouncement(enemy.Name+" : " +strconv.Itoa(int(enemy.Health)) +"HP")
-	}
-	
-	
-	if enemy.Health <= 0 {
-		enemy.Defeated = true
-		enemy.EnemyOnDeath(enemy, player)
-		
-		return true
-	}
-	if (FirstToAttack){
-		//Then the Enemy will attack play since they havent attacked yet
-		enemy.EnemyAttack(enemy,player,false)	
-	}
-	return false
-}
-
 
 
 
@@ -159,12 +114,14 @@ var Enemies = []Enemy{
 var ForestMonsters = []Enemy{Enemies[0],Enemies[1],Enemies[2],}
 var CaveMonsters = []Enemy{Enemies[1],Enemies[3],Enemies[4]}
 var DungeonMonsters = []Enemy{Enemies[7],Enemies[6],Enemies[5]}
-
+var DungeonLayout = []int32{1,2,0,1,2,1,2}
+var ForestLayout =[]int32{2,1,0,2,1}
+var CaveLayout =[]int32{1,0,2,1,2,1}
 
 var Areas = []ExploreAbleArea{
-	{ID: "1", AreasName: "Forest",AreasRecommenedLevel: "1",MonstersFoundInArea: ForestMonsters, AmountOfRoomsInArea: 5,AmountOfMonstersInArea: 2,AmountOfTreasureRooms: 1,AreaCleared: false },
-	{ID: "2", AreasName: "Cave",AreasRecommenedLevel: "3", MonstersFoundInArea:CaveMonsters,AmountOfRoomsInArea: 6,AmountOfMonstersInArea: 3,AmountOfTreasureRooms: 2 ,AreaCleared: false},
-	{ID:"3",AreasName: "Dungeon",AreasRecommenedLevel: "5", MonstersFoundInArea:DungeonMonsters,AmountOfRoomsInArea: 7,AmountOfMonstersInArea: 4 ,AmountOfTreasureRooms: 3 ,AreaCleared: false },
+	{ID: "1", AreasName: "Forest",AreasRecommenedLevel: "1",MonstersFoundInArea: ForestMonsters, AmountOfRoomsInArea: 5,AmountOfMonstersInArea: 2,AmountOfTreasureRooms: 1,AreaCleared: false ,OrderOfRooms: ForestLayout},
+	{ID: "2", AreasName: "Cave",AreasRecommenedLevel: "3", MonstersFoundInArea:CaveMonsters,AmountOfRoomsInArea: 6,AmountOfMonstersInArea: 3,AmountOfTreasureRooms: 2 ,AreaCleared: false, OrderOfRooms:CaveLayout },
+	{ID:"3",AreasName: "Dungeon",AreasRecommenedLevel: "5", MonstersFoundInArea:DungeonMonsters,AmountOfRoomsInArea: 7,AmountOfMonstersInArea: 3 ,AmountOfTreasureRooms: 3 ,AreaCleared: false, OrderOfRooms:DungeonLayout },
 }
 
 var GameMessages = []GameMessage{{
@@ -188,33 +145,22 @@ var GameMessages = []GameMessage{{
 
 
  
-func BattleTurn(enemy Enemy ,player PlayerClass){
-	battleAnnouncement:= enemy.Name + " and " + player.Name +" have enter batte "
-	println(battleAnnouncement)
-	if enemy.Speed >= player.Speed{
-		enemy.EnemyAttack(enemy,player,true)
+// func BattleTurn(enemy Enemy ,player PlayerClass){
+// 	battleAnnouncement:= enemy.Name + " and " + player.Name +" have enter batte "
+// 	println(battleAnnouncement)
+// 	if enemy.Speed >= player.Speed{
+// 		enemy.EnemyAttack(enemy,player,true)
 		
-	}else {
-		player.SimpleAttack(enemy, player,true)
-	}
-	CurrentEnemy.Health = enemy.Health
-	CurrentPlayer.Health = player.Health
-}
+// 	}else {
+// 		player.SimpleAttack(enemy, player,true)
+// 	}
+ 
+// }
 
 
-func EndCurrentBattle(enemy Enemy, player PlayerClass){
-	if (enemy.Defeated == true){
-		SetBattleAnnouncement("The current battle as End," +enemy.Name +" was defeated.")
-	}else {
-		SetBattleAnnouncement("The current battle as End,"+" the player has been defeated.")
-	}
-}
 
 
-func SetBattleAnnouncement(NewAnnouncement string){
-	battleAnnouncement = NewAnnouncement
-	println(battleAnnouncement)
-}
+
 
 
 
@@ -282,49 +228,29 @@ func CreateNewEnemy(c *gin.Context){
 	c.IndentedJSON(http.StatusCreated,NewEnemy)
 }
 
-func GinStartBattle(c *gin.Context){
-	var player PlayerClass = CurrentPlayer
-	var enemy Enemy = CurrentEnemy
-
-	battleAnnouncement:= enemy.Name + " and " + player.Name +" have enter batte "
-	SetBattleAnnouncement(battleAnnouncement)
-	println("test")
-
-	
-	
-
-
-	if enemy.Speed >= player.Speed {
-		//enemy.EnemyAttack(enemy,player,true
-		CurrentPlayer.Health -=CurrentEnemy.Attack
-		
-		if CurrentPlayer.Health >= 0 {
-			CurrentEnemy.Health-= CurrentPlayer.Attack
-			
-		}else {
-			println("Player is dead")
-		}
-
-	}else {
-		//player.SimpleAttack(enemy, player,true)	
-		CurrentEnemy.Health-= CurrentPlayer.Attack
-		if CurrentEnemy.Health >= 0 {
-			CurrentPlayer.Health-= CurrentEnemy.Attack
-		
-		}else{
-			println("Enemy is dead")
-		}
-		c.IndentedJSON(http.StatusAccepted, CurrentPlayer)
-	}
-	
-
-
-
-
-
-
-	c.IndentedJSON(http.StatusOK,CurrentPlayer)
+func ProcessOneTurn( Return string ,ch chan string){
+	time.Sleep(3* time.Second)
+	ch <- Return
 }
+
+func GinStartBattle(c *gin.Context){
+	ch := make(chan string)
+	go ProcessOneTurn("This finshed in 3 seconds",ch)
+	temp := <-ch
+	GameMessages[0].Announcement = temp
+	c.IndentedJSON(http.StatusOK, GameMessages[0])
+	
+	
+		
+
+	}
+
+
+
+
+
+
+
 
 func GinGetCurrentPlayerOrEnemy(c *gin.Context){
 	EnemyOrPlayer := c.Param("UnitType")
@@ -354,14 +280,14 @@ func GetPlayerByName(name string) (*PlayerClass,error){
 	return nil, errors.New("no player found")
 }
 
-func GetAreaById(id string) (*ExploreAbleArea,error){
+func GetAreaByName(Name string) (*ExploreAbleArea,error){
 	for i, b:= range Areas{
-		if b.ID == id {
+		if b.AreasName == Name {
 			 CurrentArea=  Areas[i]
 			return &Areas[i],nil
 		}
 	}
-	return nil, errors.New("no player found")
+	return nil, errors.New("no Area found")
 }
 func GetListOfAreas(c *gin.Context){
 	c.IndentedJSON(http.StatusOK, Areas)
@@ -383,16 +309,59 @@ func SetClass(c *gin.Context){
 	
 }
 
-
-// func ExploreArea(c *gin.Context){
-// 	CurrentArea.
-
+func ExploreArea(c *gin.Context){
+	AreaName := c.Param("AreaName")
+	Areas , err := GetAreaByName(AreaName)
+	if err != nil {
+		GameMessages[0].Announcement ="No Area found with that Name found. The Areas that can be picked are Forest, Cave, Or Dungon"
+		c.IndentedJSON(http.StatusNotFound, GameMessages[0])
+		return
+	}
+	GameMessages[0].Announcement = "You have entered the " + Areas.AreasName +" To progress to the next room  please enter : Progress"
+	CurrentArea = *Areas
+	c.IndentedJSON(http.StatusOK, GameMessages[0]) 
 	
-// }
+}
 
 
 
 
+func progress(c *gin.Context) {
+    if counterForArea >= len(CurrentArea.OrderOfRooms) {
+        // Reset the counters and respond when you reach the end of the area
+        MonsterEncountered = 0
+        counterForArea = 0
+        GameMessages[0].Announcement = "You have reached the end of the Area"
+        c.IndentedJSON(http.StatusOK, GameMessages[0])
+        return
+    }
+
+    roomType := CurrentArea.OrderOfRooms[counterForArea]
+    counterForArea++
+
+    switch roomType {
+    case 1:
+        // Monster room
+        if MonsterEncountered < len(CurrentArea.MonstersFoundInArea) {
+            GameMessages[0].Announcement = "You have Encountered a " + CurrentArea.MonstersFoundInArea[MonsterEncountered].Name + ". You must fight to be able to progress"
+            MonsterEncountered++
+        } else {
+            // Handle the case where there are no more monsters to encounter
+            GameMessages[0].Announcement = "You have Encountered an empty room. To progress to the next room, please enter: Progress"
+        }
+    case 0:
+        // Treasure room
+        GameMessages[0].Announcement = "You have Encountered a Treasure Room. You found an item. To progress to the next room, please enter: Progress"
+    case 2:
+        // Empty room
+        GameMessages[0].Announcement = "You have Encountered an Empty Room. To progress to the next room, please enter: Progress"
+    default:
+        // Handle unexpected room types
+        GameMessages[0].Announcement = "Unexpected room type encountered"
+    }
+
+    c.IndentedJSON(http.StatusOK, GameMessages[0])
+}
 
 
 func main(){
@@ -409,21 +378,16 @@ func main(){
 		
 	}))
 	SetPlayer(PlayerCharacter[1])
-	//BattleTurn(CurrentEnemy, CurrentPlayer)
-
-	router.GET("Explore/:AreaName")
+	router.GET("Explore/:AreaName" ,ExploreArea)
 	router.GET("SetClass/:ClassName" ,SetClass )
-
-
-
+	router.GET("Progress",progress)
 	router.GET("GetAreas", GetListOfAreas)
 	router.GET("GetPlayer",ReturnCurrentPlayer)
-	//router.GET("SetPlayer/:id", GinChoosePlayerById)
 	router.GET("Startgame", StartGame)
 	router.GET("Enemy/:id", GinGetEnemybyId)
 	router.GET("/En" ,GetListOfEnemy)
 	router.GET("/Pr", GetListOfPlayer)
-	router.PATCH("/StartBattle",GinStartBattle)
+	router.GET("StartBattle",GinStartBattle)
 	router.GET("/CurrentUnits/:UnitType",GinGetCurrentPlayerOrEnemy)
 	router.Run("localhost:8080")
 
