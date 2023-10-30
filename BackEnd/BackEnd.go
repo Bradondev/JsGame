@@ -2,18 +2,17 @@ package main
 
 import (
 	"fmt"
-	
+
 	//"go/printer"
 	"errors"
 	"net/http"
-	"time"
-
-	//"strconv"
+	"strconv"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	//"google.golang.org/protobuf/internal/strs"
 )
+var DialougeTemp int = 0
 var counterForArea int = 0
 var MonsterEncountered int 
 var CurrentArea ExploreAbleArea
@@ -24,8 +23,12 @@ var CurrentGame = GameState{
 	InBattle: false,
 	CanExplore: false,
 }
-
+type ListOfDialouge struct{
+	NameOfDialouge string
+	Dialouge []string `json:"Dialouge"`
+}
 type GameMessage struct{
+
 	Announcement string `json:"Announcement"`
 }
 
@@ -74,6 +77,21 @@ type ExploreAbleArea struct{
 }
 
 
+func (player PlayerClass) TakeDamage(DamageAmount int32){
+	CurrentPlayer.Health-= DamageAmount
+	if CurrentPlayer.Health < 0 {
+		CurrentPlayer.Health =0
+	}
+}
+
+
+func (enemy Enemy) TakeDamage(DamageAmount int32){
+	
+	CurrentEnemy.Health -= DamageAmount
+	if CurrentEnemy.Health < 0 {
+		CurrentEnemy.Health = 0
+	}
+}
 
 
 func (player PlayerClass) GainExperincePoints(enemy Enemy) {
@@ -97,7 +115,9 @@ var PlayerCharacter = []PlayerClass{
 	{ID: "4", Name: "Tank", Attack: 3, Defence: 4,Health: 22,Speed: 2 },
 }
 
-
+var GameDialouge =[]ListOfDialouge{
+	{NameOfDialouge: "Starting Dialouge", Dialouge: []string{"Welcome to RPG.JS in this text based game you will go on an adventure to defeat the Demon King , Please enter : Go, to Continue","In order to get strong enough to fight the Demon King ,you'll need to level up and get better equipment, Please enter : Go, to Continue", " You'll do this by exploring the 4 different Areas, looting these areas ,and defeating monsters, Please enter : Go, to Continue", " Your adventure will begin which you choosen a class by entering: SetClass/Mage or Knight or Tank or Rouge" }},
+}
 
 var Enemies = []Enemy{
 	{ID: "1", Name: "Slime", Attack: 1, Defence: 1,Health: 6, Defeated: false ,Speed: 3, ExperincePoints: 5},
@@ -130,6 +150,7 @@ var GameMessages = []GameMessage{{
 
 
 
+
 //////////////
 
 //func bookById(c *gin.Context){
@@ -157,6 +178,14 @@ var GameMessages = []GameMessage{{
  
 // }
 
+func SetHpToOfPlayer(NewHealth int32) {
+	CurrentPlayer.Health = NewHealth
+}
+
+ 
+func SetHpTOfCurrentEnemy(NewHealth int32) {
+	CurrentEnemy.Health = NewHealth
+}
 
 
 
@@ -228,26 +257,51 @@ func CreateNewEnemy(c *gin.Context){
 	c.IndentedJSON(http.StatusCreated,NewEnemy)
 }
 
-func ProcessOneTurn( Return string ,ch chan string){
-	time.Sleep(3* time.Second)
-	ch <- Return
-}
+
 
 func GinStartBattle(c *gin.Context){
-	ch := make(chan string)
-	go ProcessOneTurn("This finshed in 3 seconds",ch)
-	temp := <-ch
-	GameMessages[0].Announcement = temp
-	c.IndentedJSON(http.StatusOK, GameMessages[0])
-	
-	
-		
-
+	ProgressOneTurnInBattle()
+	c.IndentedJSON(http.StatusOK,GameMessages[0])
 	}
 
+func ProgressOneTurnInBattle(){
+ if CurrentGame.InBattle{
+	if CurrentPlayer.Speed > CurrentEnemy.Speed{
+		CurrentEnemy.TakeDamage(CurrentPlayer.Attack) 
+		GameMessages[0].Announcement = CurrentPlayer.Name + " attacked " + CurrentEnemy.Name + " You dealt: " + strconv.Itoa(int(CurrentPlayer.Attack)) +" Points of damage. "+ CurrentEnemy.Name  + "'s HP  decreased to: "+ strconv.Itoa(int(CurrentEnemy.Health))
+		if CurrentEnemy.Health > 0{
+			CurrentPlayer.TakeDamage(CurrentEnemy.Attack) 
+			GameMessages[0].Announcement += CurrentEnemy.Name + "  attacked you and dealt: " + strconv.Itoa(int(CurrentEnemy.Attack)) + " Points of damage your HP decreased to: "+ strconv.Itoa(int(CurrentPlayer.Health)) + " "
+			if CurrentPlayer.Health <= 0{
+				GameMessages[0].Announcement += " You have been defeated by " + CurrentEnemy.Name +". You Can no longer progress. Please Restart to try again"
+				CurrentGame.InBattle = false
+			}
+		}else{
+			GameMessages[0].Announcement += " You have defeated " + CurrentEnemy.Name +". You may progress in this area now"
+			CurrentGame.InBattle = false
+		}
+	} else {
+		CurrentPlayer.TakeDamage(CurrentEnemy.Attack) 
+		GameMessages[0].Announcement = CurrentEnemy.Name + "  attacked you and dealt: " + strconv.Itoa(int(CurrentEnemy.Attack)) + " Points of damage your HP decreased to: "+ strconv.Itoa(int(CurrentPlayer.Health)) + " "
+		if CurrentPlayer.Health > 0{
+		CurrentEnemy.TakeDamage(CurrentPlayer.Attack)
+		GameMessages[0].Announcement += CurrentPlayer.Name + " attacked " + CurrentEnemy.Name  + " You dealt: " + strconv.Itoa(int(CurrentPlayer.Attack))+ "Points of damage. " + CurrentEnemy.Name  +"s HP + decreased to: "+ strconv.Itoa(int(CurrentEnemy.Health))
+			if CurrentEnemy.Health <= 0{
 
-
-
+				GameMessages[0].Announcement += " You have defeated " + CurrentEnemy.Name +". You may progress in the area now"
+				CurrentGame.InBattle = false
+			}
+		}else{
+			GameMessages[0].Announcement += " You have been defeated by " + CurrentEnemy.Name +". You Can no longer progress. Please Restart to try again"
+			CurrentGame.InBattle = false
+		}
+		
+	}
+	
+ }else{
+	GameMessages[0].Announcement = "You must be in battle to be able to progress in battle "
+ }
+}
 
 
 
@@ -263,11 +317,24 @@ func GinGetCurrentPlayerOrEnemy(c *gin.Context){
 	
 }
 func StartGame(c *gin.Context){
-	c.IndentedJSON(http.StatusOK,gin.H{"message": "Please choose a clas by entering : SetClass/Mage or Knight or Tank or Rouge"  })
+	
+
+	c.IndentedJSON(http.StatusOK,gin.H{"message": "Please enter : Go"})
 }
-func ReturnCurrentPlayer(c *gin.Context){
-	c.IndentedJSON(http.StatusOK,CurrentPlayer)
+func ProgressDialouge( c *gin.Context){
+	if DialougeTemp < len(GameDialouge[0].Dialouge){
+		GameMessages[0].Announcement = GameDialouge[0].Dialouge[DialougeTemp]
+		DialougeTemp++
+		
+	}else{
+		GameMessages[0].Announcement = "This Dialouge has Enned"
+	}
+	c.IndentedJSON(http.StatusOK,GameMessages[0])
 }
+
+
+
+
 
 
 func GetPlayerByName(name string) (*PlayerClass,error){
@@ -310,6 +377,7 @@ func SetClass(c *gin.Context){
 }
 
 func ExploreArea(c *gin.Context){
+	if CurrentGame.CanExplore{
 	AreaName := c.Param("AreaName")
 	Areas , err := GetAreaByName(AreaName)
 	if err != nil {
@@ -318,8 +386,13 @@ func ExploreArea(c *gin.Context){
 		return
 	}
 	GameMessages[0].Announcement = "You have entered the " + Areas.AreasName +" To progress to the next room  please enter : Progress"
+	CurrentGame.CanExplore = false
 	CurrentArea = *Areas
 	c.IndentedJSON(http.StatusOK, GameMessages[0]) 
+}else{
+	GameMessages[0].Announcement = " You are un able to change the current area at this time"
+	c.IndentedJSON(http.StatusOK, GameMessages[0]) 
+}
 	
 }
 
@@ -327,11 +400,14 @@ func ExploreArea(c *gin.Context){
 
 
 func progress(c *gin.Context) {
+	if !CurrentGame.InBattle {
+	
     if counterForArea >= len(CurrentArea.OrderOfRooms) {
         // Reset the counters and respond when you reach the end of the area
         MonsterEncountered = 0
         counterForArea = 0
         GameMessages[0].Announcement = "You have reached the end of the Area"
+		CurrentPlayer.Health = 20
         c.IndentedJSON(http.StatusOK, GameMessages[0])
         return
     }
@@ -343,7 +419,9 @@ func progress(c *gin.Context) {
     case 1:
         // Monster room
         if MonsterEncountered < len(CurrentArea.MonstersFoundInArea) {
-            GameMessages[0].Announcement = "You have Encountered a " + CurrentArea.MonstersFoundInArea[MonsterEncountered].Name + ". You must fight to be able to progress"
+            GameMessages[0].Announcement = "You have Encountered a " + CurrentArea.MonstersFoundInArea[MonsterEncountered].Name + ". You must fight to be able to progress" + " Please enter: Battle , to start the fight"
+			CurrentEnemy = CurrentArea.MonstersFoundInArea[MonsterEncountered]
+			CurrentGame.InBattle = true
             MonsterEncountered++
         } else {
             // Handle the case where there are no more monsters to encounter
@@ -361,6 +439,10 @@ func progress(c *gin.Context) {
     }
 
     c.IndentedJSON(http.StatusOK, GameMessages[0])
+}else{
+	GameMessages[0].Announcement = "You can not progress unless you defeat the current Enemy"
+	c.IndentedJSON(http.StatusOK, GameMessages[0])
+}
 }
 
 
@@ -378,16 +460,17 @@ func main(){
 		
 	}))
 	SetPlayer(PlayerCharacter[1])
+	CurrentGame.CanExplore = true
 	router.GET("Explore/:AreaName" ,ExploreArea)
 	router.GET("SetClass/:ClassName" ,SetClass )
 	router.GET("Progress",progress)
 	router.GET("GetAreas", GetListOfAreas)
-	router.GET("GetPlayer",ReturnCurrentPlayer)
+	router.GET("Go",ProgressDialouge)
 	router.GET("Startgame", StartGame)
 	router.GET("Enemy/:id", GinGetEnemybyId)
 	router.GET("/En" ,GetListOfEnemy)
 	router.GET("/Pr", GetListOfPlayer)
-	router.GET("StartBattle",GinStartBattle)
+	router.GET("Battle",GinStartBattle)
 	router.GET("/CurrentUnits/:UnitType",GinGetCurrentPlayerOrEnemy)
 	router.Run("localhost:8080")
 
