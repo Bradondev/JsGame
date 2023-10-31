@@ -12,12 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 	//"google.golang.org/protobuf/internal/strs"
 )
+
 var DialougeTemp int = 0
 var counterForArea int = 0
 var MonsterEncountered int 
 var CurrentArea ExploreAbleArea
 var CurrentPlayer PlayerClass
 var CurrentEnemy Enemy
+var CurrentItem Item// Item that will be used next you use it
 var battleAnnouncement string 
 var CurrentGame = GameState{
 	InBattle: false,
@@ -40,6 +42,29 @@ type GameState struct{
 }
 
 
+type Item struct {
+	Name string `json:"name"`
+	MaxHealthBoost int32
+	HealthBoost int32
+	AttackBoost int32
+	SpeedBoost int32
+	UseAble bool
+	UseDescription string
+	ThrowDamage int32
+	SpeedDebuff int32
+	AttackDebuff int32
+}
+
+func (item Item)UseItem(){
+	CurrentPlayer.MaxHealth += CurrentItem.MaxHealthBoost
+	CurrentPlayer.Health += CurrentItem.HealthBoost
+	CurrentPlayer.Attack+=CurrentItem.AttackBoost
+	CurrentPlayer.Speed += CurrentItem.SpeedBoost
+	CurrentEnemy.Health -= CurrentItem.ThrowDamage
+	CurrentEnemy.Speed -= CurrentItem.SpeedDebuff
+	CurrentEnemy.Attack -= CurrentItem.AttackDebuff
+}
+
 
 
 type Enemy struct {
@@ -61,6 +86,7 @@ type PlayerClass struct {
 	ExperincePointsUntilNextLevel int32 `json:"neededpoints"`
 	Attack int32 `json:"Attack"`
 	Health int32 `json:"health"`
+	MaxHealth int32 `json:"Maxhealth"`
 	Defence int32 `json:"defence"`
 	Speed int32 `json:"speed"`
 }
@@ -109,17 +135,20 @@ func (player PlayerClass) GainExperincePoints(enemy Enemy) {
 ///data used for the game 
 
 var PlayerCharacter = []PlayerClass{
-	{ID: "1", Name: "Mage", Attack: 6, Defence: 2,Health: 14,Speed: 5 ,Level: 1},
-	{ID: "2", Name: "Knight", Attack: 3, Defence: 3,Health: 20, Speed: 6},
-	{ID: "3", Name: "Rouge", Attack: 3, Defence: 2,Health: 16, Speed: 10},
-	{ID: "4", Name: "Tank", Attack: 3, Defence: 4,Health: 22,Speed: 2 },
+	{ID: "1", Name: "Mage", Attack: 6, Defence: 2,Health: 14,Speed: 5,Level: 1,MaxHealth: 14},
+	{ID: "2", Name: "Knight", Attack: 3, Defence: 3,Health: 20, Speed: 6, Level: 1, MaxHealth: 20},
+	{ID: "3", Name: "Rouge", Attack: 3, Defence: 2,Health: 16, Speed: 10, Level: 1, MaxHealth: 16},
+	{ID: "4", Name: "Tank", Attack: 3, Defence: 4,Health: 22,Speed: 2 ,Level:1, MaxHealth: 22 },
 }
 
 var GameDialouge =[]ListOfDialouge{
 	{NameOfDialouge: "Starting Dialouge", Dialouge: []string{"Welcome to RPG.JS in this text based game you will go on an adventure to defeat the Demon King , Please enter : Go, to Continue","In order to get strong enough to fight the Demon King ,you'll need to level up and get better equipment, Please enter : Go, to Continue", " You'll do this by exploring the 4 different Areas, looting these areas ,and defeating monsters, Please enter : Go, to Continue", " Your adventure will begin which you choosen a class by entering: SetClass/Mage or Knight or Tank or Rouge" }},
 }
-
-var Enemies = []Enemy{
+var Items =[]Item{
+	{Name: "HealthPotion",HealthBoost: 10, UseDescription: "You healed 10 Hp after you drunk this strange liquid"},
+	{Name: "Ruby Ring", MaxHealthBoost: 3 ,AttackBoost: 1, UseDescription: "You feel your heart strenghened with confidence, you gained 3 MaxHealth ,and 1 Attack."},
+}
+var Enemies = []Enemy{ 
 	{ID: "1", Name: "Slime", Attack: 1, Defence: 1,Health: 6, Defeated: false ,Speed: 3, ExperincePoints: 5},
 	{ID: "2", Name: "Goblin", Attack: 3, Defence: 5,Health: 20, Defeated: false ,Speed: 6, ExperincePoints: 10},
 	{ID: "3", Name: "Bat", Attack: 3, Defence: 2,Health: 10, Defeated: false ,Speed: 8,ExperincePoints: 7},
@@ -321,6 +350,12 @@ func StartGame(c *gin.Context){
 
 	c.IndentedJSON(http.StatusOK,gin.H{"message": "Please enter : Go"})
 }
+func UseItem(c *gin.Context){
+	Name := c.Param("Name")
+	GetItemByName(Name)
+	CurrentItem.UseItem()
+}
+
 func ProgressDialouge( c *gin.Context){
 	if DialougeTemp < len(GameDialouge[0].Dialouge){
 		GameMessages[0].Announcement = GameDialouge[0].Dialouge[DialougeTemp]
@@ -356,10 +391,24 @@ func GetAreaByName(Name string) (*ExploreAbleArea,error){
 	}
 	return nil, errors.New("no Area found")
 }
+
+
+func GetItemByName(Name string) (*ExploreAbleArea,error){
+	for i, b:= range Items{
+		if b.Name == Name {
+			 CurrentArea=  Areas[i]
+			return &Areas[i],nil
+		}
+	}
+	return nil, errors.New("no Area found")
+}
+
+
+
 func GetListOfAreas(c *gin.Context){
 	c.IndentedJSON(http.StatusOK, Areas)
-
 }
+
 
 func SetClass(c *gin.Context){
 	ClassName := c.Param("ClassName")
@@ -461,6 +510,7 @@ func main(){
 	}))
 	SetPlayer(PlayerCharacter[1])
 	CurrentGame.CanExplore = true
+	router.GET("UseItem/:Name" ,UseItem)
 	router.GET("Explore/:AreaName" ,ExploreArea)
 	router.GET("SetClass/:ClassName" ,SetClass )
 	router.GET("Progress",progress)
