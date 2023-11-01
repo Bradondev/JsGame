@@ -16,6 +16,7 @@ import (
 var DialougeTemp int = 0
 var counterForArea int = 0
 var MonsterEncountered int 
+var ItemsCounter int
 var CurrentArea ExploreAbleArea
 var CurrentPlayer PlayerClass
 var CurrentEnemy Enemy
@@ -53,16 +54,31 @@ type Item struct {
 	ThrowDamage int32
 	SpeedDebuff int32
 	AttackDebuff int32
+	InBattleUseOnly bool
 }
 
 func (item Item)UseItem(){
-	CurrentPlayer.MaxHealth += CurrentItem.MaxHealthBoost
-	CurrentPlayer.Health += CurrentItem.HealthBoost
-	CurrentPlayer.Attack+=CurrentItem.AttackBoost
-	CurrentPlayer.Speed += CurrentItem.SpeedBoost
-	CurrentEnemy.Health -= CurrentItem.ThrowDamage
-	CurrentEnemy.Speed -= CurrentItem.SpeedDebuff
-	CurrentEnemy.Attack -= CurrentItem.AttackDebuff
+	if CurrentItem.UseAble{
+		if CurrentItem.InBattleUseOnly  {
+			if CurrentGame.InBattle{
+			CurrentEnemy.Health -= CurrentItem.ThrowDamage
+			CurrentEnemy.Speed -= CurrentItem.SpeedDebuff
+			CurrentEnemy.Attack -= CurrentItem.AttackDebuff
+			}else{
+				GameMessages[0].Announcement = "This Item can only be used in battle"
+				return
+			}
+		}
+		GameMessages[0].Announcement = CurrentItem.UseDescription	
+		CurrentPlayer.MaxHealth += CurrentItem.MaxHealthBoost
+		CurrentPlayer.Health += CurrentItem.HealthBoost
+		CurrentPlayer.Attack+=CurrentItem.AttackBoost
+		CurrentPlayer.Speed += CurrentItem.SpeedBoost
+	}else {
+		GameMessages[0].Announcement = "You do not have this item"
+}
+
+
 }
 
 
@@ -98,8 +114,10 @@ type ExploreAbleArea struct{
 	AmountOfRoomsInArea int32 `json:"amountOfRooms"`
 	AmountOfMonstersInArea int32 `json:"amountOfMonstersInArea"`
 	AmountOfTreasureRooms int32 `json:"amountOfTreasureRooms"`
+	ListOfItemsInArea []Item
 	AreaCleared bool 
 	OrderOfRooms []int32 // 0 = TreasureRoom ,1 = monster , 2 = emtpy
+	FullyExplored bool
 }
 
 
@@ -145,8 +163,13 @@ var GameDialouge =[]ListOfDialouge{
 	{NameOfDialouge: "Starting Dialouge", Dialouge: []string{"Welcome to RPG.JS in this text based game you will go on an adventure to defeat the Demon King , Please enter : Go, to Continue","In order to get strong enough to fight the Demon King ,you'll need to level up and get better equipment, Please enter : Go, to Continue", " You'll do this by exploring the 4 different Areas, looting these areas ,and defeating monsters, Please enter : Go, to Continue", " Your adventure will begin which you choosen a class by entering: SetClass/Mage or Knight or Tank or Rouge" }},
 }
 var Items =[]Item{
-	{Name: "HealthPotion",HealthBoost: 10, UseDescription: "You healed 10 Hp after you drunk this strange liquid"},
+	{Name: "Health Potion",HealthBoost: 10, UseDescription: "You healed 10 Hp after you drunk this strange liquid"},
 	{Name: "Ruby Ring", MaxHealthBoost: 3 ,AttackBoost: 1, UseDescription: "You feel your heart strenghened with confidence, you gained 3 MaxHealth ,and 1 Attack."},
+	{Name: "Ring Of Death", HealthBoost: 5, AttackBoost: 5,UseDescription: "You feel as though Death has become your friend, you gained 5 Attack and lost 5 Health points"},
+	{Name: "Robe of life",MaxHealthBoost: 8,UseDescription: "You feel the warm touch of life, you gained 8 Max Health",},{Name: "Bomb",ThrowDamage: 10,UseDescription: "You throw a bomb to the current enemy dealing 10 damage to them.",InBattleUseOnly: true},
+	{Name:"Magic Stone", ThrowDamage: 5, HealthBoost: 5, InBattleUseOnly: true,UseDescription: "You throw a stone that explored ,which ended up healing you for 5 HP , and Dealing 5 damage to the enemy"},
+	{Name: "Sun Stone", SpeedBoost: 3, MaxHealthBoost: 3,HealthBoost: 3,UseDescription: "You ate the stone which was really just a dragon egg, you gained 3 Max Health ,and Speed"},
+	
 }
 var Enemies = []Enemy{ 
 	{ID: "1", Name: "Slime", Attack: 1, Defence: 1,Health: 6, Defeated: false ,Speed: 3, ExperincePoints: 5},
@@ -159,7 +182,9 @@ var Enemies = []Enemy{
 	{ID: "8", Name: "Undead Knight", Attack: 7, Defence: 5, Health:  23 ,Defeated:  false,Speed: 5,ExperincePoints: 25},
 }
 
-
+var DungonItems = []Item { Items[3],Items[2]}
+var CaveItems = []Item {Items[4],Items[5],Items[6]}
+var ForestItems = []Item {Items[0],Items[4]}//health potion and robr of life
 var ForestMonsters = []Enemy{Enemies[0],Enemies[1],Enemies[2],}
 var CaveMonsters = []Enemy{Enemies[1],Enemies[3],Enemies[4]}
 var DungeonMonsters = []Enemy{Enemies[7],Enemies[6],Enemies[5]}
@@ -168,7 +193,7 @@ var ForestLayout =[]int32{2,1,0,2,1}
 var CaveLayout =[]int32{1,0,2,1,2,1}
 
 var Areas = []ExploreAbleArea{
-	{ID: "1", AreasName: "Forest",AreasRecommenedLevel: "1",MonstersFoundInArea: ForestMonsters, AmountOfRoomsInArea: 5,AmountOfMonstersInArea: 2,AmountOfTreasureRooms: 1,AreaCleared: false ,OrderOfRooms: ForestLayout},
+	{ID: "1", AreasName: "Forest",AreasRecommenedLevel: "1",MonstersFoundInArea: ForestMonsters, AmountOfRoomsInArea: 5,AmountOfMonstersInArea: 2,AmountOfTreasureRooms: 1,AreaCleared: false ,OrderOfRooms: ForestLayout,ListOfItemsInArea: ForestItems},
 	{ID: "2", AreasName: "Cave",AreasRecommenedLevel: "3", MonstersFoundInArea:CaveMonsters,AmountOfRoomsInArea: 6,AmountOfMonstersInArea: 3,AmountOfTreasureRooms: 2 ,AreaCleared: false, OrderOfRooms:CaveLayout },
 	{ID:"3",AreasName: "Dungeon",AreasRecommenedLevel: "5", MonstersFoundInArea:DungeonMonsters,AmountOfRoomsInArea: 7,AmountOfMonstersInArea: 3 ,AmountOfTreasureRooms: 3 ,AreaCleared: false, OrderOfRooms:DungeonLayout },
 }
@@ -314,7 +339,7 @@ func ProgressOneTurnInBattle(){
 		GameMessages[0].Announcement = CurrentEnemy.Name + "  attacked you and dealt: " + strconv.Itoa(int(CurrentEnemy.Attack)) + " Points of damage your HP decreased to: "+ strconv.Itoa(int(CurrentPlayer.Health)) + " "
 		if CurrentPlayer.Health > 0{
 		CurrentEnemy.TakeDamage(CurrentPlayer.Attack)
-		GameMessages[0].Announcement += CurrentPlayer.Name + " attacked " + CurrentEnemy.Name  + " You dealt: " + strconv.Itoa(int(CurrentPlayer.Attack))+ "Points of damage. " + CurrentEnemy.Name  +"s HP + decreased to: "+ strconv.Itoa(int(CurrentEnemy.Health))
+		GameMessages[0].Announcement += CurrentPlayer.Name + " attacked " + CurrentEnemy.Name  + " You dealt: " + strconv.Itoa(int(CurrentPlayer.Attack))+ " Points of damage. " + CurrentEnemy.Name  +"s HP decreased to: "+ strconv.Itoa(int(CurrentEnemy.Health))
 			if CurrentEnemy.Health <= 0{
 
 				GameMessages[0].Announcement += " You have defeated " + CurrentEnemy.Name +". You may progress in the area now"
@@ -353,7 +378,9 @@ func StartGame(c *gin.Context){
 func UseItem(c *gin.Context){
 	Name := c.Param("Name")
 	GetItemByName(Name)
+	CurrentItem.UseAble = true
 	CurrentItem.UseItem()
+	c.IndentedJSON(http.StatusOK,GameMessages[0])
 }
 
 func ProgressDialouge( c *gin.Context){
@@ -366,11 +393,6 @@ func ProgressDialouge( c *gin.Context){
 	}
 	c.IndentedJSON(http.StatusOK,GameMessages[0])
 }
-
-
-
-
-
 
 func GetPlayerByName(name string) (*PlayerClass,error){
 	for i, b:= range PlayerCharacter {
@@ -393,14 +415,20 @@ func GetAreaByName(Name string) (*ExploreAbleArea,error){
 }
 
 
-func GetItemByName(Name string) (*ExploreAbleArea,error){
+
+
+
+
+
+func GetItemByName(Name string) (*Item,error){
 	for i, b:= range Items{
 		if b.Name == Name {
-			 CurrentArea=  Areas[i]
-			return &Areas[i],nil
+			 CurrentItem= Items[i]
+			 println(CurrentItem.Name)
+			return &Items[i],nil
 		}
 	}
-	return nil, errors.New("no Area found")
+	return nil, errors.New("no item with this name found")
 }
 
 
@@ -449,14 +477,21 @@ func ExploreArea(c *gin.Context){
 
 
 func progress(c *gin.Context) {
+	if !CurrentArea.FullyExplored {
+
+	
+
 	if !CurrentGame.InBattle {
 	
     if counterForArea >= len(CurrentArea.OrderOfRooms) {
         // Reset the counters and respond when you reach the end of the area
+		ItemsCounter = 0
         MonsterEncountered = 0
         counterForArea = 0
         GameMessages[0].Announcement = "You have reached the end of the Area"
-		CurrentPlayer.Health = 20
+		CurrentArea.FullyExplored = true
+		CurrentPlayer.Health = CurrentPlayer.MaxHealth
+		CurrentGame.CanExplore = true
         c.IndentedJSON(http.StatusOK, GameMessages[0])
         return
     }
@@ -470,15 +505,22 @@ func progress(c *gin.Context) {
         if MonsterEncountered < len(CurrentArea.MonstersFoundInArea) {
             GameMessages[0].Announcement = "You have Encountered a " + CurrentArea.MonstersFoundInArea[MonsterEncountered].Name + ". You must fight to be able to progress" + " Please enter: Battle , to start the fight"
 			CurrentEnemy = CurrentArea.MonstersFoundInArea[MonsterEncountered]
+			
 			CurrentGame.InBattle = true
             MonsterEncountered++
         } else {
             // Handle the case where there are no more monsters to encounter
             GameMessages[0].Announcement = "You have Encountered an empty room. To progress to the next room, please enter: Progress"
+			
         }
     case 0:
         // Treasure room
-        GameMessages[0].Announcement = "You have Encountered a Treasure Room. You found an item. To progress to the next room, please enter: Progress"
+		CurrentArea.ListOfItemsInArea[ItemsCounter].UseAble = true
+		CurrentItem =CurrentArea.ListOfItemsInArea[ItemsCounter]
+		CurrentItem.UseAble = true
+        GameMessages[0].Announcement = "You have Encountered a Treasure Room. You found  " +	CurrentArea.ListOfItemsInArea[ItemsCounter].Name +". To progress to the next room, please enter: Progress , or you can enter : UseItem/(Name of item), to use the item "
+		ItemsCounter++
+
     case 2:
         // Empty room
         GameMessages[0].Announcement = "You have Encountered an Empty Room. To progress to the next room, please enter: Progress"
@@ -490,6 +532,9 @@ func progress(c *gin.Context) {
     c.IndentedJSON(http.StatusOK, GameMessages[0])
 }else{
 	GameMessages[0].Announcement = "You can not progress unless you defeat the current Enemy"
+	c.IndentedJSON(http.StatusOK, GameMessages[0])
+} }else{
+	GameMessages[0].Announcement = "You have already fully explored this area. Please Enter a different area you haven't explored yet."
 	c.IndentedJSON(http.StatusOK, GameMessages[0])
 }
 }
