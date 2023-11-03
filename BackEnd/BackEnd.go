@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	//"google.golang.org/protobuf/internal/strs"
 )
-
+var TempForArea int
 var DialougeTemp int = 0
 var counterForArea int = 0
 var MonsterEncountered int 
@@ -55,9 +55,10 @@ type Item struct {
 	SpeedDebuff int32
 	AttackDebuff int32
 	InBattleUseOnly bool
+	Id int
 }
 
-func (item Item)UseItem(){
+func (item Item)UseItem(ID int){
 	if CurrentItem.UseAble{
 		if CurrentItem.InBattleUseOnly  {
 			if CurrentGame.InBattle{
@@ -74,11 +75,13 @@ func (item Item)UseItem(){
 		CurrentPlayer.Health += CurrentItem.HealthBoost
 		CurrentPlayer.Attack+=CurrentItem.AttackBoost
 		CurrentPlayer.Speed += CurrentItem.SpeedBoost
+		Items[CurrentArea.ListOfItemsInArea[ID]].UseAble = false
 	}else {
 		GameMessages[0].Announcement = "You do not have this item"
 }
-
-
+}
+func (item Item)CanUseItem(Can bool){
+ CurrentItem.UseAble = Can
 }
 
 
@@ -114,7 +117,7 @@ type ExploreAbleArea struct{
 	AmountOfRoomsInArea int32 `json:"amountOfRooms"`
 	AmountOfMonstersInArea int32 `json:"amountOfMonstersInArea"`
 	AmountOfTreasureRooms int32 `json:"amountOfTreasureRooms"`
-	ListOfItemsInArea []Item
+	ListOfItemsInArea []int32
 	AreaCleared bool 
 	OrderOfRooms []int32 // 0 = TreasureRoom ,1 = monster , 2 = emtpy
 	FullyExplored bool
@@ -182,9 +185,9 @@ var Enemies = []Enemy{
 	{ID: "8", Name: "Undead Knight", Attack: 7, Defence: 5, Health:  23 ,Defeated:  false,Speed: 5,ExperincePoints: 25},
 }
 
-var DungonItems = []Item { Items[3],Items[2]}
-var CaveItems = []Item {Items[4],Items[5],Items[6]}
-var ForestItems = []Item {Items[0],Items[4]}//health potion and robr of life
+var DungonItems = []int32 {2,3}
+var CaveItems = []int32 {4,5}
+var ForestItems = []int32 {0,1}//health potion and robr of life
 var ForestMonsters = []Enemy{Enemies[0],Enemies[1],Enemies[2],}
 var CaveMonsters = []Enemy{Enemies[1],Enemies[3],Enemies[4]}
 var DungeonMonsters = []Enemy{Enemies[7],Enemies[6],Enemies[5]}
@@ -194,8 +197,8 @@ var CaveLayout =[]int32{1,0,2,1,2,1}
 
 var Areas = []ExploreAbleArea{
 	{ID: "1", AreasName: "Forest",AreasRecommenedLevel: "1",MonstersFoundInArea: ForestMonsters, AmountOfRoomsInArea: 5,AmountOfMonstersInArea: 2,AmountOfTreasureRooms: 1,AreaCleared: false ,OrderOfRooms: ForestLayout,ListOfItemsInArea: ForestItems},
-	{ID: "2", AreasName: "Cave",AreasRecommenedLevel: "3", MonstersFoundInArea:CaveMonsters,AmountOfRoomsInArea: 6,AmountOfMonstersInArea: 3,AmountOfTreasureRooms: 2 ,AreaCleared: false, OrderOfRooms:CaveLayout },
-	{ID:"3",AreasName: "Dungeon",AreasRecommenedLevel: "5", MonstersFoundInArea:DungeonMonsters,AmountOfRoomsInArea: 7,AmountOfMonstersInArea: 3 ,AmountOfTreasureRooms: 3 ,AreaCleared: false, OrderOfRooms:DungeonLayout },
+	{ID: "2", AreasName: "Cave",AreasRecommenedLevel: "3", MonstersFoundInArea:CaveMonsters,AmountOfRoomsInArea: 6,AmountOfMonstersInArea: 3,AmountOfTreasureRooms: 2 ,AreaCleared: false, OrderOfRooms:CaveLayout ,ListOfItemsInArea: CaveItems},
+	{ID:"3",AreasName: "Dungeon",AreasRecommenedLevel: "5", MonstersFoundInArea:DungeonMonsters,AmountOfRoomsInArea: 7,AmountOfMonstersInArea: 3 ,AmountOfTreasureRooms: 3 ,AreaCleared: false, OrderOfRooms:DungeonLayout ,ListOfItemsInArea: DungonItems},
 }
 
 var GameMessages = []GameMessage{{
@@ -378,8 +381,8 @@ func StartGame(c *gin.Context){
 func UseItem(c *gin.Context){
 	Name := c.Param("Name")
 	GetItemByName(Name)
-	CurrentItem.UseAble = true
-	CurrentItem.UseItem()
+	//CurrentItem.UseAble = true
+	CurrentItem.UseItem(CurrentItem.Id)
 	c.IndentedJSON(http.StatusOK,GameMessages[0])
 }
 
@@ -408,6 +411,7 @@ func GetAreaByName(Name string) (*ExploreAbleArea,error){
 	for i, b:= range Areas{
 		if b.AreasName == Name {
 			 CurrentArea=  Areas[i]
+			 TempForArea = i
 			return &Areas[i],nil
 		}
 	}
@@ -477,7 +481,7 @@ func ExploreArea(c *gin.Context){
 
 
 func progress(c *gin.Context) {
-	if !CurrentArea.FullyExplored {
+	if !CurrentGame.CanExplore {
 
 	
 
@@ -488,8 +492,9 @@ func progress(c *gin.Context) {
 		ItemsCounter = 0
         MonsterEncountered = 0
         counterForArea = 0
+		//Areas[TempForArea].FullyExplored = true
         GameMessages[0].Announcement = "You have reached the end of the Area"
-		CurrentArea.FullyExplored = true
+		
 		CurrentPlayer.Health = CurrentPlayer.MaxHealth
 		CurrentGame.CanExplore = true
         c.IndentedJSON(http.StatusOK, GameMessages[0])
@@ -515,10 +520,9 @@ func progress(c *gin.Context) {
         }
     case 0:
         // Treasure room
-		CurrentArea.ListOfItemsInArea[ItemsCounter].UseAble = true
-		CurrentItem =CurrentArea.ListOfItemsInArea[ItemsCounter]
-		CurrentItem.UseAble = true
-        GameMessages[0].Announcement = "You have Encountered a Treasure Room. You found  " +	CurrentArea.ListOfItemsInArea[ItemsCounter].Name +". To progress to the next room, please enter: Progress , or you can enter : UseItem/(Name of item), to use the item "
+		Items[CurrentArea.ListOfItemsInArea[ItemsCounter]].UseAble = true
+	
+        GameMessages[0].Announcement = "You have Encountered a Treasure Room. You found  " +	Items[CurrentArea.ListOfItemsInArea[ItemsCounter]].Name +". To progress to the next room, please enter: Progress , or you can enter : UseItem/(Name of item), to use the item "
 		ItemsCounter++
 
     case 2:
